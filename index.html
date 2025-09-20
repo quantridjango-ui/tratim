@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>❤️ Tiểu học Đồng Hương ❤️</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .title {
+            color: #FF5CA4;
+            text-align: center;
+            font-size: clamp(1.5rem, 4vw, 3rem);
+            font-weight: bold;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 20px rgba(255, 92, 164, 0.5);
+            animation: titleGlow 2s ease-in-out infinite alternate;
+            z-index: 10;
+        }
+
+        canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            max-height: 600px;
+        }
+
+        .heart-bg {
+            position: absolute;
+            width: 200px;
+            height: 180px;
+            background: #FF5CA4;
+            border-radius: 100px 100px 0 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 20px 40px rgba(255, 92, 164, 0.3);
+            opacity: 0.7;
+            animation: heartBeat 1.5s ease-in-out infinite;
+        }
+
+        .heart-bg::before {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 180px;
+            background: #FF5CA4;
+            border-radius: 100px 100px 0 0;
+            transform: rotate(90deg);
+            transform-origin: right bottom;
+            top: 0;
+            right: 0;
+            opacity: 0.7;
+        }
+
+        @keyframes titleGlow {
+            from { text-shadow: 0 0 20px rgba(255, 92, 164, 0.5); }
+            to { text-shadow: 0 0 30px rgba(255, 92, 164, 0.8), 0 0 40px rgba(255, 92, 164, 0.4); }
+        }
+
+        @keyframes heartBeat {
+            0%, 100% { transform: rotate(-45deg) scale(1); }
+            50% { transform: rotate(-45deg) scale(1.1); }
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 1.5rem;
+                margin-bottom: 1rem;
+            }
+            canvas {
+                max-width: 90vw;
+                max-height: 70vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">❤️ Lê Ngọc Thảo Vy ❤️</h1>
+        <canvas id="canvas"></canvas>
+        <div class="heart-bg"></div>
+    </div>
+
+    <script>
+        // Settings
+        var settings = {
+            particles: {
+                length: 1000,
+                duration: 3,
+                velocity: 80,
+                effect: -1.2,
+                size: 10,
+            },
+            animation: {
+                heartBeatSpeed: 1.5,
+                particleRate: 0.8
+            }
+        };
+
+        // RequestAnimationFrame polyfill
+        (function() {
+            var lastTime = 0;
+            var vendors = ['ms', 'moz', 'webkit', 'o'];
+            for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
+                window.requestAnimationFrame = window[vendors[x] + 'RequestAnimationFrame'];
+                window.cancelAnimationFrame = window[vendors[x] + 'CancelAnimationFrame'] || 
+                                             window[vendors[x] + 'CancelRequestAnimationFrame'];
+            }
+            if (!window.requestAnimationFrame)
+                window.requestAnimationFrame = function(callback, element) {
+                    var currTime = new Date().getTime();
+                    var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+                    var id = window.setTimeout(function() { callback(currTime + timeToCall); }, timeToCall);
+                    lastTime = currTime + timeToCall;
+                    return id;
+                };
+            if (!window.cancelAnimationFrame)
+                window.cancelAnimationFrame = function(id) {
+                    clearTimeout(id);
+                };
+        }());
+
+        // Point class
+        class Point {
+            constructor(x = 0, y = 0) {
+                this.x = x;
+                this.y = y;
+            }
+            
+            clone() {
+                return new Point(this.x, this.y);
+            }
+            
+            length(len) {
+                if (len === undefined) {
+                    return Math.sqrt(this.x * this.x + this.y * this.y);
+                }
+                this.normalize();
+                this.x *= len;
+                this.y *= len;
+                return this;
+            }
+            
+            normalize() {
+                var len = this.length();
+                if (len > 0) {
+                    this.x /= len;
+                    this.y /= len;
+                }
+                return this;
+            }
+        }
+
+        // Particle class
+        class Particle {
+            constructor() {
+                this.position = new Point();
+                this.velocity = new Point();
+                this.acceleration = new Point();
+                this.age = 0;
+            }
+            
+            initialize(x, y, dx, dy) {
+                this.position.x = x;
+                this.position.y = y;
+                this.velocity.x = dx;
+                this.velocity.y = dy;
+                this.acceleration.x = dx * settings.particles.effect;
+                this.acceleration.y = dy * settings.particles.effect;
+                this.age = 0;
+            }
+            
+            update(deltaTime) {
+                this.position.x += this.velocity.x * deltaTime;
+                this.position.y += this.velocity.y * deltaTime;
+                this.velocity.x += this.acceleration.x * deltaTime;
+                this.velocity.y += this.acceleration.y * deltaTime;
+                this.age += deltaTime;
+            }
+            
+            draw(context, image) {
+                function ease(t) {
+                    return (--t) * t * t + 1;
+                }
+                
+                var alpha = 1 - this.age / settings.particles.duration;
+                if (alpha < 0) return;
+                
+                var size = image.width * ease(this.age / settings.particles.duration);
+                context.globalAlpha = alpha;
+                
+                context.drawImage(image, 
+                    this.position.x - size / 2, 
+                    this.position.y - size / 2, 
+                    size, size
+                );
+            }
+        }
+
+        // ParticlePool class
+        class ParticlePool {
+            constructor(length) {
+                this.particles = new Array(length);
+                for (let i = 0; i < length; i++) {
+                    this.particles[i] = new Particle();
+                }
+                this.firstActive = 0;
+                this.firstFree = 0;
+                this.duration = settings.particles.duration;
+            }
+            
+            add(x, y, dx, dy) {
+                this.particles[this.firstFree].initialize(x, y, dx, dy);
+                this.firstFree++;
+                if (this.firstFree == this.particles.length) this.firstFree = 0;
+                if (this.firstActive == this.firstFree) this.firstActive++;
+                if (this.firstActive == this.particles.length) this.firstActive = 0;
+            }
+            
+            update(deltaTime) {
+                let i;
+                if (this.firstActive < this.firstFree) {
+                    for (i = this.firstActive; i < this.firstFree; i++) {
+                        this.particles[i].update(deltaTime);
+                    }
+                } else if (this.firstFree < this.firstActive) {
+                    for (i = this.firstActive; i < this.particles.length; i++) {
+                        this.particles[i].update(deltaTime);
+                    }
+                    for (i = 0; i < this.firstFree; i++) {
+                        this.particles[i].update(deltaTime);
+                    }
+                }
+
+                while (this.particles[this.firstActive].age >= this.duration && 
+                       this.firstActive != this.firstFree) {
+                    this.firstActive++;
+                    if (this.firstActive == this.particles.length) this.firstActive = 0;
+                }
+            }
+            
+            draw(context, image) {
+                let i;
+                if (this.firstActive < this.firstFree) {
+                    for (i = this.firstActive; i < this.firstFree; i++) {
+                        this.particles[i].draw(context, image);
+                    }
+                } else if (this.firstFree < this.firstActive) {
+                    for (i = this.firstActive; i < this.particles.length; i++) {
+                        this.particles[i].draw(context, image);
+                    }
+                    for (i = 0; i < this.firstFree; i++) {
+                        this.particles[i].draw(context, image);
+                    }
+                }
+            }
+        }
+
+        // Main animation
+        function initAnimation() {
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const particles = new ParticlePool(settings.particles.length);
+            let time = 0;
+            let particleRate = settings.particles.length / settings.particles.duration;
+
+            function pointOnHeart(t) {
+                return new Point(
+                    160 * Math.pow(Math.sin(t), 3),
+                    130 * Math.cos(t) - 50 * Math.cos(2 * t) - 20 * Math.cos(3 * t) - 10 * Math.cos(4 * t) + 25
+                );
+            }
+
+            function createParticleImage() {
+                const tempCanvas = document.createElement('canvas');
+                const tempContext = tempCanvas.getContext('2d');
+                tempCanvas.width = settings.particles.size;
+                tempCanvas.height = settings.particles.size;
+
+                function to(t) {
+                    let point = pointOnHeart(t);
+                    point.x = settings.particles.size / 2 + point.x * settings.particles.size / 350;
+                    point.y = settings.particles.size / 2 - point.y * settings.particles.size / 350;
+                    return point;
+                }
+
+                tempContext.beginPath();
+                let t = -Math.PI;
+                let point = to(t);
+                tempContext.moveTo(point.x, point.y);
+                
+                while (t < Math.PI) {
+                    t += 0.01;
+                    point = to(t);
+                    tempContext.lineTo(point.x, point.y);
+                }
+                
+                tempContext.closePath();
+                tempContext.fillStyle = '#FF5CA4';
+                tempContext.fill();
+
+                const image = new Image();
+                image.src = tempCanvas.toDataURL();
+                return image;
+            }
+
+            const particleImage = createParticleImage();
+
+            function render() {
+                requestAnimationFrame(render);
+
+                const newTime = new Date().getTime() / 1000;
+                const deltaTime = newTime - (time || newTime);
+                time = newTime;
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                const amount = particleRate * deltaTime * settings.animation.particleRate;
+                for (let i = 0; i < amount; i++) {
+                    const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+                    const dir = pos.clone().length(settings.particles.velocity);
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    
+                    particles.add(
+                        centerX + pos.x, 
+                        centerY - pos.y, 
+                        dir.x, 
+                        -dir.y
+                    );
+                }
+
+                particles.update(deltaTime);
+                particles.draw(context, particleImage);
+            }
+
+            function resizeCanvas() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            
+            setTimeout(() => {
+                render();
+            }, 100);
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                for (let i = 0; i < 15; i++) {
+                    const angle = (Math.PI * 2 * i) / 15;
+                    const speed = 50 + Math.random() * 50;
+                    const dx = Math.cos(angle) * speed;
+                    const dy = Math.sin(angle) * speed;
+                    
+                    particles.add(x, y, dx, dy);
+                }
+            });
+        }
+
+        window.addEventListener('load', initAnimation);
+    </script>
+</body>
+</html>
